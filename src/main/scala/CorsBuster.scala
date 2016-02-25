@@ -1,6 +1,6 @@
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
-import akka.http.scaladsl.model.headers.{Host, RawHeader}
+import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.Flow
@@ -26,20 +26,13 @@ object CorsBuster extends App {
   val requestFlow = Flow.fromFunction[HttpRequest, HttpRequest] { request =>
     request
       .withUri(request.uri.withAuthority(config.serverHost, config.serverPort))
-      .mapHeaders(headers => headers.filterNot(_.lowercaseName() == "host"))
+      .mapHeaders(headers => headers.filterNot(_.lowercaseName() == Host.lowercaseName))
       .addHeader(Host(config.serverHost, config.serverPort))
   }
   val outgoingConnection = Http().outgoingConnection(config.serverHost, config.serverPort)
   val responseFlow = Flow.fromFunction[HttpResponse, HttpResponse] { response =>
     response
-      .withHeaders(
-        RawHeader("Access-Control-Allow-Origin", "*"),
-        RawHeader("Access-Control-Allow-Credentials", "true"),
-        RawHeader("Access-Control-Allow-Methods", "POST, PUT, DELETE, GET, OPTIONS"),
-        RawHeader("Access-Control-Request-Method", "POST, PUT, DELETE, GET, OPTIONS"),
-        RawHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization, DNT, X-CustomHeader, Keep-Alive, " +
-          "User-Agent, X-Requested-With, If-Modified-Since, Cache-Control")
-      )
+      .withHeaders(`Access-Control-Allow-Origin`.*)
   }
 
   Http().bindAndHandle(requestFlow via outgoingConnection via responseFlow, config.proxyHost, config.proxyPort)
