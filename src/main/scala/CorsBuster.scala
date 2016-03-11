@@ -1,9 +1,11 @@
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers._
-import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
-import akka.stream.ActorMaterializer
-import akka.stream.scaladsl.Flow
+import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.StatusCodes._
+import akka.http.scaladsl.model.{HttpHeader, HttpMethods, HttpResponse, HttpRequest}
+import akka.stream._
+import akka.stream.scaladsl.{Merge, Broadcast, GraphDSL, Flow}
 
 import scala.util.Try
 
@@ -29,11 +31,39 @@ object CorsBuster extends App {
       .mapHeaders(headers => headers.filterNot(_.lowercaseName() == Host.lowercaseName))
       .addHeader(Host(config.serverHost, config.serverPort))
   }
-  val outgoingConnection = Http().outgoingConnection(config.serverHost, config.serverPort)
+
+  val optionRequestFlow = Flow.fromFunction[HttpRequest, HttpResponse] { request =>
+    request.method match {
+      case OPTIONS =>
+        val responseHeaders = request.headers.flatMap {
+          case `Access-Control-Request-Method`(method) => Option(`Access-Control-Allow-Methods`(method))
+          case `Access-Control-Request-Headers`(headers) => Option(`Access-Control-Allow-Headers`(headers))
+          case _ => None
+        }
+        HttpResponse(NoContent, responseHeaders)
+      case _ => throw new IllegalStateException("Flow handles only OPTIONS request method")
+    }
+  }
+  val standardRequestFlow = Http().outgoingConnection(config.serverHost, config.serverPort)
+
   val responseFlow = Flow.fromFunction[HttpResponse, HttpResponse] { response =>
     response
-      .withHeaders(`Access-Control-Allow-Origin`.*)
+      .addHeader(`Access-Control-Allow-Origin`.*)
+      .addHeader(`Access-Control-Allow-Credentials`(true))
   }
 
-  Http().bindAndHandle(requestFlow via outgoingConnection via responseFlow, config.proxyHost, config.proxyPort)
+  val requestResponseFlow = Flow.fromGraph(GraphDSL.create() { implicit b =>
+    import GraphDSL.Implicits._
+
+    val broadcast = b.add(Broadcast[HttpRequest](2))
+    val merge = b.add(Merge[HttpResponse](2))
+    val outFlow = b.add(Flow[HttpResponse])
+
+    broadcast.filter(_.method == OPTIONS) ~> optionRequestFlow ~>   merge ~> responseFlow ~> outFlow
+    broadcast.filter(_.method != OPTIONS) ~> standardRequestFlow ~> merge
+
+    FlowShape(broadcast.in, outFlow.out)
+  })
+
+  Http().bindAndHandle(requestResponseFlow, config.proxyHost, config.proxyPort)
 }
