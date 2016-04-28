@@ -1,5 +1,7 @@
 # cors-buster
 
+![cors-buster-logo](logo.jpg)
+
 cors-buster is a simple reverse proxy that provides all the basic CORS headers. Use it only for development!
 
 It's in a very early stage, so please report bugs through GitHub issues or via email.
