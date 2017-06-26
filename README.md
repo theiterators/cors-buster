@@ -12,13 +12,13 @@ It's in a very early stage, so please report bugs through GitHub issues or via e
 cors-buster requires Java 8 to work properly.
 
 ```
-wget https://bintray.com/artifact/download/iterators/cors-buster/cors-buster.jar
-java -jar cors-buster.jar proxyHost proxyPort serverHost serverPort
+wget https://bintray.com/artifact/download/iterators/cors-buster/cors-buster-1.0.1.jar
+java -jar cors-buster-1.0.1.jar proxyHost proxyPort serverHost serverPort
 ```
 
 For example
 ```
-java -jar cors-buster.jar 0.0.0.0 8080 localhost 9000
+java -jar cors-buster-1.0.1.jar 0.0.0.0 8080 localhost 9000
 ```
 will set up a proxy listening on 0.0.0.0:8080 and will forward all requests to server running on localhost:9000.
 

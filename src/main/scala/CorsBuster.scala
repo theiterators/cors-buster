@@ -3,7 +3,7 @@ import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.headers._
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model.StatusCodes._
-import akka.http.scaladsl.model.{HttpHeader, HttpMethods, HttpResponse, HttpRequest}
+import akka.http.scaladsl.model.{HttpResponse, HttpRequest}
 import akka.stream._
 import akka.stream.scaladsl.{Merge, Broadcast, GraphDSL, Flow}
 
@@ -26,10 +26,8 @@ object CorsBuster extends App {
   implicit val materializer = ActorMaterializer()
 
   val requestFlow = Flow.fromFunction[HttpRequest, HttpRequest] { request =>
+    request.entity.discardBytes()
     request
-      .withUri(request.uri.withAuthority(config.serverHost, config.serverPort))
-      .mapHeaders(headers => headers.filterNot(_.lowercaseName() == Host.lowercaseName))
-      .addHeader(Host(config.serverHost, config.serverPort))
   }
 
   val optionRequestFlow = Flow.fromFunction[HttpRequest, HttpResponse] { request =>
@@ -55,14 +53,16 @@ object CorsBuster extends App {
   val requestResponseFlow = Flow.fromGraph(GraphDSL.create() { implicit b =>
     import GraphDSL.Implicits._
 
+    val request = b.add(requestFlow)
     val broadcast = b.add(Broadcast[HttpRequest](2))
     val merge = b.add(Merge[HttpResponse](2))
     val outFlow = b.add(Flow[HttpResponse])
 
+    request ~> broadcast
     broadcast.filter(_.method == OPTIONS) ~> optionRequestFlow ~>   merge ~> responseFlow ~> outFlow
     broadcast.filter(_.method != OPTIONS) ~> standardRequestFlow ~> merge
 
-    FlowShape(broadcast.in, outFlow.out)
+    FlowShape(request.in, outFlow.out)
   })
 
   Http().bindAndHandle(requestResponseFlow, config.proxyHost, config.proxyPort)
