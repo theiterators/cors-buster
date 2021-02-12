@@ -12,7 +12,7 @@ It's in a very early stage, so please report bugs through GitHub issues or via e
 cors-buster requires Java 8 to work properly.
 
 ```
-wget https://bintray.com/artifact/download/iterators/cors-buster/cors-buster-1.0.1.jar
+wget https://github.com/theiterators/cors-buster/releases/download/1.0.1/cors-buster-1.0.1.jar
 java -jar cors-buster-1.0.1.jar proxyHost proxyPort serverHost serverPort
 ```
 
